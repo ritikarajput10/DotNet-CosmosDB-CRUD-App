@@ -1,0 +1,56 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Cosmos;
+using DotNetCosmosDBCRUDApp.Models;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace DotNetCosmosDBCRUDApp.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ItemsController : ControllerBase
+    {
+        private readonly CosmosClient _cosmosClient;
+        private readonly Container _container;
+
+        public ItemsController(CosmosClient cosmosClient)
+        {
+            _cosmosClient = cosmosClient;
+            _container = _cosmosClient.GetContainer("YourDatabase", "YourContainer");
+        }
+
+        [HttpGet]
+        public async Task<IEnumerable<Item>> Get()
+        {
+            var query = _container.GetItemQueryIterator<Item>("SELECT * FROM c");
+            var results = new List<Item>();
+            while (query.HasMoreResults)
+            {
+                var response = await query.ReadNextAsync();
+                results.AddRange(response);
+            }
+            return results;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Post([FromBody] Item item)
+        {
+            await _container.CreateItemAsync(item, new PartitionKey(item.id));
+            return Ok(item);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(string id, [FromBody] Item item)
+        {
+            await _container.ReplaceItemAsync(item, id, new PartitionKey(id));
+            return Ok(item);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(string id)
+        {
+            await _container.DeleteItemAsync<Item>(id, new PartitionKey(id));
+            return NoContent();
+        }
+    }
+}
